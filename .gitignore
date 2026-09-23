@@ -1,0 +1,29 @@
+# Visual Studio / Rider / VS Code
+.vs/
+.vsconfig
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+
+# Unreal Engine build/derived artifacts (per-project)
+GrapplePractice/Binaries/
+GrapplePractice/Intermediate/
+GrapplePractice/DerivedDataCache/
+GrapplePractice/Saved/
+GrapplePractice/.vs/
+
+# Plugin build/derived artifacts
+GrapplePractice/Plugins/*/Binaries/
+GrapplePractice/Plugins/*/Intermediate/
+
+# Unreal Engine generated project files
+*.xcodeproj
+*.xcworkspace
+
+# Third-party downloaded content - re-download from Fab instead of tracking in git
+GrapplePractice/Content/ParagonGideon/
+GrapplePractice/Content/Fab/
