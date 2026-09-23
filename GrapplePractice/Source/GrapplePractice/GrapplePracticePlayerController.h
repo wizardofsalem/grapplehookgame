@@ -17,7 +17,9 @@ UCLASS(abstract)
 class AGrapplePracticePlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+public:
+
+	FVector2D getGrappleCrosshairLocation() const;
 protected:
 
 	/** Input Mapping Contexts */

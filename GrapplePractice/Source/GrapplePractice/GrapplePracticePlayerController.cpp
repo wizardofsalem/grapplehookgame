@@ -2,12 +2,34 @@
 
 
 #include "GrapplePracticePlayerController.h"
+#include "GrapplePracticeCharacter.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "GrapplePractice.h"
 #include "Widgets/Input/SVirtualJoystick.h"
+
+FVector2D AGrapplePracticePlayerController::getGrappleCrosshairLocation() const
+{
+	auto character = Cast<AGrapplePracticeCharacter>(GetCharacter());
+
+
+	if(!character)
+		return FVector2D(0, 0);
+
+		auto grappleStartHeight = character->GetGrappleStartHeight();
+		auto grapplePitch = character->GetGrapplePitch();
+		auto grappleDistance = character->GetGrappleDistance();
+
+		FVector end = (PlayerCameraManager->GetCameraRotation() + FRotator(grapplePitch, 0.0f, 0.0f)).Vector() * grappleDistance;
+		FVector start = PlayerCameraManager->GetCameraLocation() + FVector3d(0, 0, grappleStartHeight);
+
+		FVector2D screenLocation;
+
+		ProjectWorldLocationToScreen(start + end, screenLocation);
+		return screenLocation;
+}
 
 void AGrapplePracticePlayerController::BeginPlay()
 {
