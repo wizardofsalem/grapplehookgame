@@ -11,24 +11,20 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "GrapplePractice.h"
+#include "Kismet/GameplayStatics.h"
 #include <CustomMovementComponent.h>
 
 AGrapplePracticeCharacter::AGrapplePracticeCharacter(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
-	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
-		
-	// Don't rotate when the controller rotates. Let that just affect the camera.
+
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
 
-	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
-	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
 	GetCharacterMovement()->MaxWalkSpeed = 500.f;
@@ -36,39 +32,67 @@ AGrapplePracticeCharacter::AGrapplePracticeCharacter(const FObjectInitializer& O
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
-	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
 
-	// Create a follow camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
-	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+	SetupGrappleCable();
+}
+
+void AGrapplePracticeCharacter::SetupGrappleCable()
+{
+	FAttachmentTransformRules AttachmentRules(
+		EAttachmentRule::SnapToTarget,
+		EAttachmentRule::SnapToTarget,
+		EAttachmentRule::KeepRelative,
+		true
+	);
+
+	GrappleCable = CreateDefaultSubobject<UCableComponent>(TEXT("GrappleCable"));
+	GrappleCable->SetupAttachment(GetMesh(), FName("hand_l"));
+	GrappleCable->bAutoActivate = true;
+	GrappleCable->SetVisibility(false);
+	GrappleCable->NumSegments = 250;
+	GrappleCable->NumSides = 16;
+	GrappleCable->SolverIterations = 16;
+	GrappleCable->CableGravityScale = 2.5f;
+	GrappleCable->CableWidth = 5.0f;
+	GrappleCable->bAttachStart = true;
+	GrappleCable->bEnableCollision = true;
+
+	GrappleAnchorPoint = CreateDefaultSubobject<USceneComponent>(TEXT("GrappleAnchorPoint"));
+
+	GrappleCable->SetAttachEndToComponent(GrappleAnchorPoint, NAME_None);
+	GrappleCable->bAttachEnd = true;
+	GrappleCable->EndLocation = FVector::ZeroVector;
+	GrappleCable->CableLength = GrappleDistance;
 }
 
 void AGrapplePracticeCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
 		
-		// Jumping
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Started, this, &AGrapplePracticeCharacter::DoGrappleStart);
 		EnhancedInputComponent->BindAction(GrappleAction, ETriggerEvent::Completed, this, &AGrapplePracticeCharacter::DoGrappleEnd);
 
-		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AGrapplePracticeCharacter::Move);
 		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AGrapplePracticeCharacter::Look);
 
-		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AGrapplePracticeCharacter::Look);
+
+		EnhancedInputComponent->BindAction(SaveLocationAction, ETriggerEvent::Started, this, &AGrapplePracticeCharacter::DoSaveLocation);
+
+		EnhancedInputComponent->BindAction(LoadLocationAction, ETriggerEvent::Started, this, &AGrapplePracticeCharacter::DoLoadLocation);
+
+		EnhancedInputComponent->BindAction(BurstSpeedAction, ETriggerEvent::Started, this, &AGrapplePracticeCharacter::DoBurstSpeed);
 	}
 	else
 	{
@@ -76,21 +100,32 @@ void AGrapplePracticeCharacter::SetupPlayerInputComponent(UInputComponent* Playe
 	}
 }
 
+void AGrapplePracticeCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+}
+
+void AGrapplePracticeCharacter::Tick(float DeltaSeconds) {
+	Super::Tick(DeltaSeconds);
+
+	if (IsGrappling_)
+	{
+		const float Distance = FVector::Dist(GrappleCable->GetComponentLocation(), GrappleAnchorPoint->GetComponentLocation());
+		GrappleCable->CableLength = FMath::Min(Distance * CableSlackMultiplier, FiredCableDistance);
+	}
+}
+
 void AGrapplePracticeCharacter::Move(const FInputActionValue& Value)
 {
-	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	// route the input
 	DoMove(MovementVector.X, MovementVector.Y);
 }
 
 void AGrapplePracticeCharacter::Look(const FInputActionValue& Value)
 {
-	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	// route the input
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
@@ -98,17 +133,13 @@ void AGrapplePracticeCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
-		// find out which way is forward
 		const FRotator Rotation = GetController()->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		// get forward vector
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-		// add movement 
 		AddMovementInput(ForwardDirection, Forward);
 		AddMovementInput(RightDirection, Right);
 	}
@@ -118,7 +149,6 @@ void AGrapplePracticeCharacter::DoLook(float Yaw, float Pitch)
 {
 	if (GetController() != nullptr)
 	{
-		// add yaw and pitch input to controller
 		AddControllerYawInput(Yaw);
 		AddControllerPitchInput(Pitch);
 	}
@@ -126,13 +156,11 @@ void AGrapplePracticeCharacter::DoLook(float Yaw, float Pitch)
 
 void AGrapplePracticeCharacter::DoJumpStart()
 {
-	// signal the character to jump
 	Jump();
 }
 
 void AGrapplePracticeCharacter::DoJumpEnd()
 {
-	// signal the character to stop jumping
 	StopJumping();
 }
 
@@ -148,12 +176,38 @@ void AGrapplePracticeCharacter::DoGrappleStart()
 	FHitResult Hit;
 	FCollisionQueryParams queryParams(FName(TEXT("CameraTrace")), true, this);
 	if (GetWorld()->LineTraceSingleByChannel(Hit, traceStart, traceStart + LookDirection * GrappleDistance, ECC_Visibility, queryParams)) {
-		DrawDebugLine(GetWorld(), traceStart, Hit.Location, FColor::Green, false, 2.0f, 0, 1.0f);
-		GetCharacterMovement<UCustomMovementComponent>()->StartGrapple(Hit.Location, GrappleLaunchStrength, GrappleDistance);
+		AnchorLocation_ = Hit.Location;
+		IsGrappling_ = true;
+		GrappleAnchorPoint->SetWorldLocation(Hit.Location);
+		FiredCableDistance = FVector::Dist(GrappleCable->GetComponentLocation(), Hit.Location);
+		GrappleCable->SetVisibility(true);
+		GetCharacterMovement<UCustomMovementComponent>()->AttachGrapple(Hit.Location, GrappleLaunchStrength, GrappleDistance);
 	}
 }
 
 void AGrapplePracticeCharacter::DoGrappleEnd()
 {
+	IsGrappling_ = false;
+	GrappleCable->SetVisibility(false);
 	GetCharacterMovement<UCustomMovementComponent>()->EndGrapple();
+}
+
+void AGrapplePracticeCharacter::DoSaveLocation()
+{
+	if (GetCharacterMovement()->IsMovingOnGround()) {
+	SavedLocation_ = GetActorLocation();
+	}
+}
+
+void AGrapplePracticeCharacter::DoLoadLocation()
+{
+	if (SavedLocation_.IsSet())
+	{
+		SetActorLocation(SavedLocation_.GetValue());
+	}
+}
+
+void AGrapplePracticeCharacter::DoBurstSpeed()
+{
+	LaunchCharacter(GetActorForwardVector() * BurstSpeed_, true, true);
 }
