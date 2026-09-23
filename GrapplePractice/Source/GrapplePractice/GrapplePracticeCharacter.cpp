@@ -209,5 +209,18 @@ void AGrapplePracticeCharacter::DoLoadLocation()
 
 void AGrapplePracticeCharacter::DoBurstSpeed()
 {
-	LaunchCharacter(GetActorForwardVector() * BurstSpeed_, true, true);
+	const float CurrentTime = GetWorld()->GetTimeSeconds();
+	if (CurrentTime - LastBurstSpeedTime_ < BurstSpeedCooldown_)
+	{
+		return;
+	}
+	LastBurstSpeedTime_ = CurrentTime;
+
+	FVector Forward = GetActorForwardVector();
+	FVector HorizontalDirection = FVector(Forward.X, Forward.Y, 0.0f).GetSafeNormal();
+
+	FVector FinalLaunchVelocity = HorizontalDirection * BurstSpeedForward_ + FVector(0.0f, 0.0f, BurstSpeedUp_);
+
+	LaunchCharacter(FinalLaunchVelocity, true, false);
+	OnBurstSpeedFired();
 }

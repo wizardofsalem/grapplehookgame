@@ -107,7 +107,16 @@ protected:
 	// --- Other gameplay state ---
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speed")
-	float BurstSpeed_ = 2000.0f;
+	float BurstSpeedForward_ = 1500.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speed")
+	float BurstSpeedUp_ = 800.0f;
+
+	/** Minimum seconds between Burst Speed uses */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speed")
+	float BurstSpeedCooldown_ = 1.0f;
+
+	/** World time (seconds) Burst Speed was last used - very negative so the first use is never blocked */
+	float LastBurstSpeedTime_ = -1000.0f;
 
 	TOptional<FVector> SavedLocation_ = TOptional<FVector>();
 
@@ -164,6 +173,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void DoBurstSpeed();
+
+	/** Hook for Blueprint to react to the burst dash firing (play a montage, FX, sound, etc.) */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Speed")
+	void OnBurstSpeedFired();
 
 	// --- Getters ---
 
