@@ -162,6 +162,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoGrappleStart();
 
+	/** Hook for Blueprint to react to the grapple firing (play a montage, FX, sound, etc.) without duplicating input binding */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Grapple")
+	void OnGrappleFired();
+
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void DoGrappleEnd();
 

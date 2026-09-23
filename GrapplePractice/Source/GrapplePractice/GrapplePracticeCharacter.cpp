@@ -161,6 +161,7 @@ void AGrapplePracticeCharacter::DoLook(float Yaw, float Pitch)
 
 void AGrapplePracticeCharacter::DoJumpStart()
 {
+	GetCharacterMovement<UCustomMovementComponent>()->HasJumped_ = true;
 	Jump();
 }
 
@@ -180,13 +181,15 @@ void AGrapplePracticeCharacter::DoGrappleStart()
 	
 	FHitResult Hit;
 	FCollisionQueryParams queryParams(FName(TEXT("CameraTrace")), true, this);
+
 	if (GetWorld()->LineTraceSingleByChannel(Hit, traceStart, traceStart + LookDirection * GrappleDistance, ECC_Visibility, queryParams)) {
 		AnchorLocation_ = Hit.Location;
 		IsGrappling_ = true;
 		GrappleAnchorPoint->SetWorldLocation(Hit.Location);
 		FiredCableDistance = FVector::Dist(GrappleCable->GetComponentLocation(), Hit.Location);
 		GrappleCable->SetVisibility(true);
-		GetCharacterMovement<UCustomMovementComponent>()->AttachGrapple(Hit.Location, GrappleLaunchStrength, GrappleDistance);
+		GetCharacterMovement<UCustomMovementComponent>()->AttachGrapple(Hit.Location, GrappleDistance);
+		OnGrappleFired();
 	}
 }
 
