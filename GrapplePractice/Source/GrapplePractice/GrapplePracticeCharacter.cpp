@@ -46,28 +46,19 @@ AGrapplePracticeCharacter::AGrapplePracticeCharacter(const FObjectInitializer& O
 
 void AGrapplePracticeCharacter::SetupGrappleCable()
 {
-	FAttachmentTransformRules AttachmentRules(
-		EAttachmentRule::SnapToTarget,
-		EAttachmentRule::SnapToTarget,
-		EAttachmentRule::KeepRelative,
-		true
-	);
-
-	GrappleCable = CreateDefaultSubobject<UCableComponent>(TEXT("GrappleCable"));
-	GrappleCable->SetupAttachment(GetMesh(), FName("hand_l"));
+	GrappleCable = CreateDefaultSubobject<UCableComponent>(TEXT("Rope"));
+	GrappleCable->SetupAttachment(GetMesh());
 	GrappleCable->bAutoActivate = true;
-	GrappleCable->SetVisibility(false);
 	GrappleCable->NumSegments = 250;
 	GrappleCable->NumSides = 16;
 	GrappleCable->SolverIterations = 16;
 	GrappleCable->CableGravityScale = 2.5f;
-	GrappleCable->CableWidth = 5.0f;
+	GrappleCable->CableWidth = 3.0f;
 	GrappleCable->bAttachStart = true;
 	GrappleCable->bEnableCollision = true;
 
 	GrappleAnchorPoint = CreateDefaultSubobject<USceneComponent>(TEXT("GrappleAnchorPoint"));
 
-	GrappleCable->SetAttachEndToComponent(GrappleAnchorPoint, NAME_None);
 	GrappleCable->bAttachEnd = true;
 	GrappleCable->EndLocation = FVector::ZeroVector;
 	GrappleCable->CableLength = GrappleDistance;
@@ -103,6 +94,20 @@ void AGrapplePracticeCharacter::SetupPlayerInputComponent(UInputComponent* Playe
 void AGrapplePracticeCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	GrappleCable->SetAttachEndToComponent(GrappleAnchorPoint, NAME_None);
+
+	FAttachmentTransformRules AttachmentRules(
+		EAttachmentRule::SnapToTarget,
+		EAttachmentRule::SnapToTarget,
+		EAttachmentRule::KeepWorld,
+		false
+	);
+	GrappleCable->AttachToComponent(GetMesh(), AttachmentRules, FName("hand_l"));
+
+	AddTickPrerequisiteComponent(GetMesh());
+	GrappleCable->AddTickPrerequisiteActor(this);
+	GrappleCable->SetVisibility(false);
 }
 
 void AGrapplePracticeCharacter::Tick(float DeltaSeconds) {
